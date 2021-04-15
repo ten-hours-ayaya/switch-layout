@@ -3,18 +3,7 @@ import subprocess
 
 from pynput import keyboard
 
-# The shortcuts triggering switch
-SWITCH_SHORTCUTS = [
-    # For some reason Alt pressed after Shift gets registered as a different
-    # key code on my system.
-    {keyboard.KeyCode(65511)},  # Shift + Alt
-    {keyboard.Key.alt, keyboard.Key.shift},  # Alt + Shift
-
-    # Examples
-    # {keyboard.Key.shift, keyboard.Key.ctrl},  # Shift + Ctrl
-    # {keyboard.Key.cmd, keyboard.Key.space},  # Super + Space
-    # {keyboard.Key.caps_lock},  # CapsLock
-]
+MONITORED_KEYS = {keyboard.Key.ctrl, keyboard.Key.shift}
 
 # How many layouts do you have?
 LAYOUTS_COUNT = 2
@@ -37,48 +26,34 @@ def format_key(key):
 class Switcher:
     def __init__(self):
         self.current_keys = set()
-        self.keys_pressed = 0
-
-        self.monitored_keys = set()
-        for shortcut in SWITCH_SHORTCUTS:
-            self.monitored_keys |= shortcut
-
+        self.is_ready_to_change = False
         self.current_layout = 0
 
     def on_press(self, key):
         if DEBUG:
             print("Pressed: {}".format(format_key(key)))
 
-        if key not in self.monitored_keys:
+        if key not in MONITORED_KEYS:
+            self.current_keys.clear()
+            self.is_ready_to_change = False
             return
 
         self.current_keys.add(key)
-        self.keys_pressed += 1
-
-        if self.is_switch_shortcut():
-            self.on_switch()
+        self.is_ready_to_change = len(MONITORED_KEYS.difference(self.current_keys)) == 0
 
     def on_release(self, key):
         if DEBUG:
             print("Released: {}".format(format_key(key)))
-
-        self.keys_pressed -= 1
-
-        # Sometimes one key is pressed and another is released.
-        # Blame X server.
+        
+        if key not in MONITORED_KEYS:
+            return
+        
         if key in self.current_keys:
             self.current_keys.remove(key)
 
-        if self.keys_pressed <= 0:
-            self.keys_pressed = 0
-            self.current_keys = set()
-
-    def is_switch_shortcut(self):
-        for shortcut in SWITCH_SHORTCUTS:
-            if self.current_keys.issuperset(shortcut):
-                return True
-
-        return False
+        if self.is_ready_to_change:
+            self.on_switch()
+            self.is_ready_to_change = False
 
     def on_switch(self):
         self.current_layout += 1
@@ -107,3 +82,4 @@ def main():
 
 if __name__ == '__main__':
     main()
+
